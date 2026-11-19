@@ -9,7 +9,7 @@ function analyze(x){
  const required={payerCountry:'ประเทศผู้จ่ายเงิน',recipientCountry:'ประเทศผู้รับเงิน',paymentDate:'วันที่จ่ายเงิน',incomeType:'ประเภทเงินได้',vatStatus:'สถานะ VAT',payerStatus:'สถานะผู้จ่ายเงิน',recipientStatus:'สถานะผู้รับเงิน'};
  for(const [key,label] of Object.entries(required))if(!String(x[key]||'').trim())questions.push('กรุณาระบุ'+label);
  if(!Number.isFinite(amount)||amount<=0)questions.push('กรุณาระบุจำนวนเงินมากกว่า 0');
- if(!String(x.description||'').trim())questions.push('กรุณาระบุรายละเอียดงานหรือสัญญา เช่น ค่าเช่าสำนักงาน หรือค่าขนส่งสินค้าตามสัญญา');
+ if(!String(x.description||'').trim() && !(x.incomeType==='freight' && x.freightConfirmed==='yes'))questions.push('กรุณาระบุรายละเอียดงานหรือสัญญา เช่น ค่าเช่าสำนักงาน หรือค่าขนส่งสินค้าตามสัญญา');
  if(x.payerStatus!=='company')questions.push('ต้องยืนยันหน้าที่หักภาษีของผู้จ่ายเงิน: กฎนี้รองรับเฉพาะนิติบุคคล');
  if(!['person','company'].includes(x.recipientStatus))questions.push('ต้องยืนยันสถานะผู้รับเงิน');
  if(x.payerCountry!=='ไทย'||x.recipientCountry!=='ไทย')questions.push('ต้องตรวจสอบกรณีต่างประเทศและอนุสัญญาภาษีซ้อน');
@@ -25,7 +25,7 @@ function analyze(x){
  if(x.incomeType==='freight'){
   const detail=((x.description||'')+' '+(x.special||'')+' '+(x.businessInfo||'')).toLowerCase();
   if(/ค่าโดยสาร|ผู้โดยสาร|ขนส่งสาธารณะ|รถโดยสาร|รถประจำทาง/.test(detail))questions.push('รายการอาจเป็นค่าโดยสารขนส่งสาธารณะ ซึ่งไม่อยู่ในกฎค่าขนส่งสินค้า 1%');
-  if(/ติดตั้ง|คลังสินค้า|เก็บสินค้า|ขนถ่าย|ยกตู้|handling|แพ็ค|บรรจุ|พิธีการ|ค่าบริการอื่น|เหมารวม|รวมบริการ|สัญญาผสม|จัดส่งพร้อมสินค้า|ขายสินค้า|ซื้อสินค้า/.test(detail))questions.push('พบลักษณะบริการผสมหรือค่าขนส่งรวมกับรายการอื่น ต้องแยกประเภทและฐานภาษีก่อน');
+  if(/ติดตั้ง|ค่าฝากเก็บ|ค่าจัดเก็บ|ค่าบริการคลังสินค้า|ขนถ่าย|ยกตู้|handling|แพ็ค|บรรจุ|พิธีการ|ค่าบริการอื่น|เหมารวม|รวมบริการ|สัญญาผสม|จัดส่งพร้อมสินค้า|ค่าขายสินค้า|ค่าซื้อสินค้า/.test(detail))questions.push('พบลักษณะบริการผสมหรือค่าขนส่งรวมกับรายการอื่น ต้องแยกประเภทและฐานภาษีก่อน');
   if(amount<1000)questions.push('จำนวนเงินต่ำกว่า 1,000 บาท ต้องยืนยันยอดตามสัญญารายหนึ่ง ๆ ก่อน');
   if(x.freightConfirmed!=='yes')questions.push('โปรดยืนยันว่าเป็นค่ารับขนสินค้าโดยเฉพาะ ไม่ใช่ค่าโดยสารหรือบริการผสม');
  }
