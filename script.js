@@ -14,7 +14,7 @@ function analyze(x){
  if(!['person','company'].includes(x.recipientStatus))questions.push('ต้องยืนยันสถานะผู้รับเงิน');
  if(x.payerCountry!=='ไทย'||x.recipientCountry!=='ไทย')questions.push('ต้องตรวจสอบกรณีต่างประเทศและอนุสัญญาภาษีซ้อน');
  if(!/^\d{4}-\d{2}-\d{2}$/.test(x.paymentDate||'')||x.paymentDate<'2001-09-15')questions.push('วันที่จ่ายเงินไม่อยู่ในช่วงที่กฎค่าขนส่งฉบับนี้ยืนยันได้');
- const rule=window.TAX_RULES.find(r=>r.type===x.incomeType);
+ const rule=(Array.isArray(window.TAX_RULES)?window.TAX_RULES:[]).find(r=>r.type===x.incomeType);
  if(!rule)questions.push('ยังไม่มีกฎที่ตรวจสอบได้สำหรับรายการนี้');
  if(['rent','service','work','advertising'].includes(x.incomeType)){
   if(x.transactionConfirmed!=='yes')questions.push('โปรดยืนยันว่าลักษณะรายการตรงกับประเภทเงินได้ที่เลือก และตรวจสอบข้อยกเว้นตามกฎหมายแล้ว');
@@ -48,17 +48,23 @@ function render(r){updateSummary(r);switchPanel('calculator');const result=$('re
  $('printResult').addEventListener('click',()=>window.print());result.scrollIntoView({behavior:'smooth',block:'start'});
 }
 function runTaxAnalysis(){
+ const feedback=$('analysisFeedback');
+ if(feedback){feedback.hidden=false;feedback.textContent='กำลังวิเคราะห์ข้อมูล…';}
  try {
   const x=collectInput();
+  if(!Array.isArray(window.TAX_RULES))throw new Error('โหลดกฎภาษีไม่สำเร็จ กรุณารีเฟรชหน้าเว็บ');
   currentInput=x;
   currentResult=analyze(x);
   render(currentResult);
+  if(feedback){feedback.hidden=true;feedback.textContent='';}
  } catch(error) {
   console.error('Tax analysis error:',error);
   switchPanel('calculator');
   const result=$('result');
   result.hidden=false;
-  result.textContent='ไม่สามารถวิเคราะห์ได้: '+(error?.message||'เกิดข้อผิดพลาด กรุณาตรวจสอบข้อมูล');
+  const message='ไม่สามารถวิเคราะห์ได้: '+(error?.message||'เกิดข้อผิดพลาด กรุณาตรวจสอบข้อมูล');
+  result.textContent=message;
+  if(feedback){feedback.hidden=false;feedback.textContent=message;}
  }
 }
 $('taxForm').addEventListener('submit',e=>{e.preventDefault();runTaxAnalysis()});
@@ -93,7 +99,7 @@ function saveCurrentResult(){
  try{writeHistory(items);editingHistoryId=null;$('saveResult').textContent='บันทึกเรียบร้อย ✓';setTimeout(()=>{const b=$('saveResult');if(b)b.textContent='บันทึกรายการนี้'},1800)}catch(err){alert('ไม่สามารถบันทึกได้ พื้นที่เก็บข้อมูลเบราว์เซอร์อาจเต็มหรือถูกปิดใช้งาน')}
 }
 function showHistory(){
- const items=readHistory();$('historyCount').textContent=String(items.length);
+ const items=readHistory();if($('historyCount'))$('historyCount').textContent=String(items.length);
  const q=($('historySearch').value||'').trim().toLocaleLowerCase();
  const filtered=items.filter(item=>[item.input?.payerName,item.input?.recipientName,item.result?.type,item.input?.paymentDate].some(v=>String(v||'').toLocaleLowerCase().includes(q)));
  $('historyList').innerHTML=filtered.length?filtered.map(item=>`<article class="history-item"><div><strong>${escapeHtml(item.result?.type||'ไม่ระบุ')}</strong><small>วันที่จ่าย ${escapeHtml(item.input?.paymentDate||'-')} · บันทึก ${escapeHtml(new Date(item.createdAt).toLocaleString('th-TH'))}</small><p>${escapeHtml(item.input?.payerName||'-')} → ${escapeHtml(item.input?.recipientName||'-')}</p><p>ยอดก่อน VAT: ${money(item.result?.amount)} · ภาษีหัก ณ ที่จ่าย: ${money(item.result?.withholding)} · ${item.result?.status==='calculated'?'คำนวณตามกฎ':'รอตรวจสอบ'}</p></div><div class="history-actions"><button type="button" class="outline" data-action="view" data-id="${escapeHtml(item.id)}">ดูผล</button><button type="button" class="outline" data-action="edit" data-id="${escapeHtml(item.id)}">แก้ไข</button><button type="button" class="outline" data-action="delete" data-id="${escapeHtml(item.id)}">ลบ</button></div></article>`).join(''):'<p>ยังไม่มีรายการที่ตรงกับการค้นหา</p>';
