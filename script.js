@@ -14,15 +14,18 @@ function analyze(x){
  if(/รวม|แยก|ติดตั้ง|สัญญาผสม|ยกเว้น|ต่างประเทศ|จัดส่ง/i.test(x.description+' '+x.special))questions.push('โปรดตรวจสอบการแยกส่วนประกอบของสัญญาและเงื่อนไขพิเศษ');
  const rule=window.TAX_RULES.find(r=>r.type===x.incomeType);
  if(!rule)questions.push('ยังไม่มีกฎที่ตรวจสอบได้สำหรับรายการนี้');
- if(rule&&!rule.verifiedAt)questions.push('ต้องตรวจสอบความถูกต้องและวันที่มีผลของกฎหมายก่อนใช้เป็นข้อสรุป');
- const vat=x.vatStatus==='7'?round(amount*.07):x.vatStatus==='none'?0:null;
+ if(rule&&rule.verifiedAt)questions.push('อัตรากฎหมายทั่วไปตรวจสอบแล้ว แต่ต้องยืนยันข้อเท็จจริงของธุรกรรมและข้อยกเว้นก่อนใช้คำนวณภาษีจริง');
+ if(x.paymentDate>'2027-09-30'&&x.vatStatus==='7')questions.push('วันจ่ายเกินช่วงเวลาที่ตรวจสอบ VAT 7% ต้องตรวจสอบอัตราที่มีผลอีกครั้ง');
+ if(x.paymentDate<'2026-11-20')questions.push('รายการย้อนหลังต้องตรวจสอบกฎหมายที่มีผลในวันจ่าย รวมถึงมาตรการ e-Withholding Tax ที่สิ้นสุด 31 ธันวาคม 2568');
+ const vat=x.vatStatus==='7'&&x.paymentDate<='2027-09-30'?round(amount*.07):x.vatStatus==='none'?0:null;
  if(vat===null)questions.push('โปรดยืนยัน VAT เพื่อคำนวณยอดจ่ายสุทธิ');
+ if(x.vatStatus==='7'&&x.paymentDate>'2027-09-30')questions.push('ไม่ยืนยัน VAT 7% สำหรับวันที่จ่ายนี้');
  // No definitive withholding result while law verification is outstanding.
  return {status:'pending',type:names[x.incomeType]||'ไม่ระบุ',amount:Number.isFinite(amount)&&amount>0?amount:null,vat,rate:null,withholding:null,net:null,form:null,rule,questions:[...new Set(questions)],note:'ระบบแสดงเพียงข้อมูลตัวเลขที่ยืนยันได้ ไม่ใช่คำวินิจฉัยภาษี'};
 }
 function render(r){const result=$('result');result.hidden=false;
  const metrics=[['จำนวนเงินก่อน VAT',money(r.amount)],['VAT',money(r.vat)],['อัตราหัก ณ ที่จ่าย','ต้องตรวจสอบ'],['ภาษีหัก ณ ที่จ่าย','ต้องตรวจสอบ'],['ยอดจ่ายสุทธิ','ต้องตรวจสอบ'],['แบบนำส่ง','ต้องตรวจสอบ']];
- result.innerHTML=`<h2>ผลการวิเคราะห์</h2><div class="status pending">ต้องการข้อมูลเพิ่มเติม / ตรวจสอบกฎหมาย</div><p><strong>ประเภทเงินได้:</strong> ${escapeHtml(r.type)}</p><div class="metrics">${metrics.map(([a,b])=>`<div class="metric"><small>${a}</small><strong>${b}</strong></div>`).join('')}</div><h3>ข้อมูลที่ต้องตรวจสอบ</h3><ul>${r.questions.map(q=>`<li>${escapeHtml(q)}</li>`).join('')}</ul><p>${escapeHtml(r.note)}</p>${r.rule?`<p><strong>กฎตัวอย่าง:</strong> ${escapeHtml(r.rule.id)} · อัตราเบื้องต้น ${r.rule.rate}% (ยังไม่ยืนยันการใช้กับธุรกรรมนี้)</p><p><strong>เงื่อนไข:</strong> ${escapeHtml(r.rule.conditions)}</p><p><a href="${r.rule.source}" target="_blank" rel="noopener">เปิดแหล่งอ้างอิงกรมสรรพากร</a></p>`:''}<div class="actions"><button type="button" id="copyResult" class="secondary">คัดลอกผลการวิเคราะห์</button><button type="button" id="printResult" class="secondary">พิมพ์ผลลัพธ์</button></div>`;
+ result.innerHTML=`<h2>ผลการวิเคราะห์</h2><div class="status pending">ต้องการข้อมูลเพิ่มเติม / ตรวจสอบกฎหมาย</div><p><strong>ประเภทเงินได้:</strong> ${escapeHtml(r.type)}</p><div class="metrics">${metrics.map(([a,b])=>`<div class="metric"><small>${a}</small><strong>${b}</strong></div>`).join('')}</div><h3>ข้อมูลที่ต้องตรวจสอบ</h3><ul>${r.questions.map(q=>`<li>${escapeHtml(q)}</li>`).join('')}</ul><p>${escapeHtml(r.note)}</p>${r.rule?`<p><strong>กฎตัวอย่าง:</strong> ${escapeHtml(r.rule.id)} · อัตราเบื้องต้น ${r.rule.rate}% (ตรวจสอบอัตรากฎหมายทั่วไปแล้ว แต่ยังไม่ยืนยันการใช้กับธุรกรรมนี้)</p><p><strong>เงื่อนไข:</strong> ${escapeHtml(r.rule.conditions)}</p><p><a href="${r.rule.source}" target="_blank" rel="noopener">เปิดแหล่งอ้างอิงกรมสรรพากร</a></p>`:''}<div class="actions"><button type="button" id="copyResult" class="secondary">คัดลอกผลการวิเคราะห์</button><button type="button" id="printResult" class="secondary">พิมพ์ผลลัพธ์</button></div>`;
  $('copyResult').addEventListener('click',async()=>{const t=result.innerText;try{await navigator.clipboard.writeText(t);$('copyResult').textContent='คัดลอกแล้ว'}catch(e){const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();const ok=document.execCommand('copy');ta.remove();$('copyResult').textContent=ok?'คัดลอกแล้ว':'ไม่สามารถคัดลอกได้'}});
  $('printResult').addEventListener('click',()=>window.print());result.scrollIntoView({behavior:'smooth',block:'start'});
 }
