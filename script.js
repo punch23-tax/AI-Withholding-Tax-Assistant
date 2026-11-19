@@ -114,8 +114,19 @@ function saveCurrentResult(){
  if(existing>=0)items[existing]=record;else items.unshift(record);
  try{writeHistory(items);editingHistoryId=null;$('saveResult').textContent='บันทึกเรียบร้อย ✓';setTimeout(()=>{const b=$('saveResult');if(b)b.textContent='บันทึกรายการนี้'},1800)}catch(err){alert('ไม่สามารถบันทึกได้ พื้นที่เก็บข้อมูลเบราว์เซอร์อาจเต็มหรือถูกปิดใช้งาน')}
 }
+function updateCumulativeWht(items){
+ // Recompute from the complete stored history (not the search-filtered list).
+ // Only confirmed calculations with a finite, nonnegative withholding value count.
+ const valid=items.filter(item=>item && item.result && item.result.status==='calculated' && item.result.withholding!==null && item.result.withholding!==undefined && item.result.withholding!=='' && Number.isFinite(Number(item.result.withholding)) && Number(item.result.withholding)>=0);
+ // Use integer satang to avoid floating point drift.
+ const totalSatang=valid.reduce((sum,item)=>sum+Math.round(Number(item.result.withholding)*100),0);
+ const formatted='฿'+(totalSatang/100).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
+ if($('cumulativeWht'))$('cumulativeWht').textContent=formatted;
+ if($('historyCumulativeWht'))$('historyCumulativeWht').textContent=formatted;
+ if($('cumulativeCount'))$('cumulativeCount').textContent=valid.length.toLocaleString('th-TH')+' รายการ';
+}
 function showHistory(){
- const items=readHistory();if($('historyCount'))$('historyCount').textContent=String(items.length);
+ const items=readHistory();updateCumulativeWht(items);if($('historyCount'))$('historyCount').textContent=String(items.length);
  const q=($('historySearch').value||'').trim().toLocaleLowerCase();
  const filtered=items.filter(item=>[item.input?.payerName,item.input?.recipientName,item.result?.type,item.input?.paymentDate].some(v=>String(v||'').toLocaleLowerCase().includes(q)));
  $('historyList').innerHTML=filtered.length?filtered.map(item=>`<article class="history-item"><div><strong>${escapeHtml(item.result?.type||'ไม่ระบุ')}</strong><small>วันที่จ่าย ${escapeHtml(item.input?.paymentDate||'-')} · บันทึก ${escapeHtml(new Date(item.createdAt).toLocaleString('th-TH'))}</small><p>${escapeHtml(item.input?.payerName||'-')} → ${escapeHtml(item.input?.recipientName||'-')}</p><p>ยอดก่อน VAT: ${money(item.result?.amount)} · ภาษีหัก ณ ที่จ่าย: ${money(item.result?.withholding)} · ${item.result?.status==='calculated'?'คำนวณตามกฎ':'รอตรวจสอบ'}</p></div><div class="history-actions"><button type="button" class="outline" data-action="view" data-id="${escapeHtml(item.id)}">ดูผล</button><button type="button" class="outline" data-action="edit" data-id="${escapeHtml(item.id)}">แก้ไข</button><button type="button" class="outline" data-action="delete" data-id="${escapeHtml(item.id)}">ลบ</button></div></article>`).join(''):'<p>ยังไม่มีรายการที่ตรงกับการค้นหา</p>';
