@@ -41,8 +41,10 @@ function analyze(x){
  return {status:eligible?'calculated':'pending',type:names[x.incomeType]||'ไม่ระบุ',amount:Number.isFinite(amount)&&amount>0?amount:null,vat,rate,withholding,net,form,rule,questions:[...new Set(questions)],note:eligible?'คำนวณตามอัตราเบื้องต้นของกฎ '+rule.id+' จากข้อมูลและคำยืนยันของผู้กรอก โปรดตรวจสอบสัญญาและข้อกฎหมายก่อนใช้งานจริง':'ระบบไม่คาดเดาอัตราเมื่อเงื่อนไขยังไม่ครบ'};
 }
 function render(r){updateSummary(r);switchPanel('calculator');const result=$('result');result.hidden=false;
+ const missingStatus=r.questions.some(q=>q.includes('สถานะผู้จ่ายเงิน')||q.includes('สถานะผู้รับเงิน')||q.includes('หน้าที่หักภาษีของผู้จ่ายเงิน'));
  const metrics=[['จำนวนเงินก่อน VAT',money(r.amount)],['VAT',money(r.vat)],['อัตราหัก ณ ที่จ่าย',r.rate===null?'ต้องตรวจสอบ':r.rate+'%'],['ภาษีหัก ณ ที่จ่าย',money(r.withholding)],['ยอดจ่ายสุทธิ',money(r.net)],['แบบนำส่ง',r.form||'ต้องตรวจสอบ']];
- result.innerHTML=`<h2>ผลการวิเคราะห์</h2><div class="status ${r.status==='calculated'?'success':'pending'}">${r.status==='calculated'?'คำนวณตามกฎที่เข้าเงื่อนไข':'ต้องการข้อมูลเพิ่มเติม / ตรวจสอบกฎหมาย'}</div><p><strong>ประเภทเงินได้:</strong> ${escapeHtml(r.type)}</p><div class="metrics">${metrics.map(([a,b])=>`<div class="metric"><small>${a}</small><strong>${b}</strong></div>`).join('')}</div>${r.questions.length?`<h3>ข้อมูลที่ต้องตรวจสอบ</h3><ul>${r.questions.map(q=>`<li>${escapeHtml(q)}</li>`).join('')}</ul>`:''}<p>${escapeHtml(r.note)}</p>${r.rule?`<p><strong>กฎตัวอย่าง:</strong> ${escapeHtml(r.rule.id)} · อัตราเบื้องต้น ${r.rule.rate}% (ตรวจสอบอัตรากฎหมายทั่วไปแล้ว แต่ยังไม่ยืนยันการใช้กับธุรกรรมนี้)</p><p><strong>เงื่อนไข:</strong> ${escapeHtml(r.rule.conditions)}</p><p><a href="${r.rule.source}" target="_blank" rel="noopener">เปิดแหล่งอ้างอิงกรมสรรพากร</a></p>`:''}<div class="actions"><button type="button" id="saveResult" class="full-btn">บันทึกรายการนี้</button><button type="button" id="copyResult" class="secondary">คัดลอกผลการวิเคราะห์</button><button type="button" id="printResult" class="secondary">พิมพ์ผลลัพธ์</button></div>`;
+ result.innerHTML=`<h2>ผลการวิเคราะห์</h2><div class="status ${r.status==='calculated'?'success':'pending'}">${r.status==='calculated'?'คำนวณตามกฎที่เข้าเงื่อนไข':'ต้องการข้อมูลเพิ่มเติม / ตรวจสอบกฎหมาย'}</div><p><strong>ประเภทเงินได้:</strong> ${escapeHtml(r.type)}</p><div class="metrics">${metrics.map(([a,b])=>`<div class="metric"><small>${a}</small><strong>${b}</strong></div>`).join('')}</div>${missingStatus?`<div class="status pending">โปรดเลือกสถานะผู้จ่ายเงินและผู้รับเงินในแบบฟอร์มก่อนคำนวณ <button type="button" id="fixPayerStatus">ไปที่ข้อมูลผู้จ่ายเงิน</button></div>`:''}${r.questions.length?`<h3>ข้อมูลที่ต้องตรวจสอบ</h3><ul>${r.questions.map(q=>`<li>${escapeHtml(q)}</li>`).join('')}</ul>`:''}<p>${escapeHtml(r.note)}</p>${r.rule?`<p><strong>กฎตัวอย่าง:</strong> ${escapeHtml(r.rule.id)} · อัตราเบื้องต้น ${r.rule.rate}% (ตรวจสอบอัตรากฎหมายทั่วไปแล้ว แต่ยังไม่ยืนยันการใช้กับธุรกรรมนี้)</p><p><strong>เงื่อนไข:</strong> ${escapeHtml(r.rule.conditions)}</p><p><a href="${r.rule.source}" target="_blank" rel="noopener">เปิดแหล่งอ้างอิงกรมสรรพากร</a></p>`:''}<div class="actions"><button type="button" id="saveResult" class="full-btn">บันทึกรายการนี้</button><button type="button" id="copyResult" class="secondary">คัดลอกผลการวิเคราะห์</button><button type="button" id="printResult" class="secondary">พิมพ์ผลลัพธ์</button></div>`;
+ if($('fixPayerStatus'))$('fixPayerStatus').addEventListener('click',()=>{switchPanel('payer');$('payerStatus').focus()});
  $('saveResult').addEventListener('click',saveCurrentResult);
  $('copyResult').addEventListener('click',async()=>{const t=result.innerText;try{await navigator.clipboard.writeText(t);$('copyResult').textContent='คัดลอกแล้ว'}catch(e){const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();const ok=document.execCommand('copy');ta.remove();$('copyResult').textContent=ok?'คัดลอกแล้ว':'ไม่สามารถคัดลอกได้'}});
  $('printResult').addEventListener('click',()=>window.print());result.scrollIntoView({behavior:'smooth',block:'start'});
@@ -52,6 +54,7 @@ function runTaxAnalysis(){
  if(feedback){feedback.hidden=false;feedback.textContent='กำลังวิเคราะห์ข้อมูล…';}
  try {
   const x=collectInput();
+  for(const id of ['payerStatus','recipientStatus']){const el=$(id);el.style.outline=el.value?'':'2px solid #d97706';el.addEventListener('change',()=>{el.style.outline=''}, {once:true});}
   if(!Array.isArray(window.TAX_RULES))throw new Error('โหลดกฎภาษีไม่สำเร็จ กรุณารีเฟรชหน้าเว็บ');
   currentInput=x;
   currentResult=analyze(x);
@@ -68,7 +71,8 @@ function runTaxAnalysis(){
  }
 }
 $('taxForm').addEventListener('submit',e=>{e.preventDefault();runTaxAnalysis()});
-$('analyzeButton').addEventListener('click',e=>{e.preventDefault();runTaxAnalysis()});
+// Submit is handled once by the form; avoid duplicate analysis on button click.
+
 $('taxForm').addEventListener('reset',()=>{$('result').hidden=true;$('result').innerHTML='';setTimeout(()=>{$('payerCountry').value='ไทย';$('recipientCountry').value='ไทย'},0)});
 // Export pure engine for local test runner.
 window.TaxEngine={analyze,round};
