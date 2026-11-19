@@ -18,7 +18,7 @@ function analyze(x){
  if(!rule)questions.push('ยังไม่มีกฎที่ตรวจสอบได้สำหรับรายการนี้');
  if(x.incomeType!=='freight')questions.push('รายการนี้ยังต้องตรวจสอบลักษณะธุรกรรมและข้อยกเว้นเพิ่มเติม');
  if(x.incomeType==='freight'){
-  const detail=(x.description+' '+x.special+' '+x.businessInfo).toLowerCase();
+  const detail=((x.description||'')+' '+(x.special||'')+' '+(x.businessInfo||'')).toLowerCase();
   if(/ค่าโดยสาร|ผู้โดยสาร|ขนส่งสาธารณะ|รถโดยสาร|รถประจำทาง/.test(detail))questions.push('รายการอาจเป็นค่าโดยสารขนส่งสาธารณะ ซึ่งไม่อยู่ในกฎค่าขนส่งสินค้า 1%');
   if(/ติดตั้ง|คลังสินค้า|เก็บสินค้า|ขนถ่าย|ยกตู้|handling|แพ็ค|บรรจุ|พิธีการ|ค่าบริการอื่น|เหมารวม|รวมบริการ|สัญญาผสม|จัดส่งพร้อมสินค้า|ขายสินค้า|ซื้อสินค้า/.test(detail))questions.push('พบลักษณะบริการผสมหรือค่าขนส่งรวมกับรายการอื่น ต้องแยกประเภทและฐานภาษีก่อน');
   if(amount<1000)questions.push('จำนวนเงินต่ำกว่า 1,000 บาท ต้องยืนยันยอดตามสัญญารายหนึ่ง ๆ ก่อน');
@@ -37,11 +37,12 @@ function analyze(x){
 }
 function render(r){updateSummary(r);switchPanel('calculator');const result=$('result');result.hidden=false;
  const metrics=[['จำนวนเงินก่อน VAT',money(r.amount)],['VAT',money(r.vat)],['อัตราหัก ณ ที่จ่าย',r.rate===null?'ต้องตรวจสอบ':r.rate+'%'],['ภาษีหัก ณ ที่จ่าย',money(r.withholding)],['ยอดจ่ายสุทธิ',money(r.net)],['แบบนำส่ง',r.form||'ต้องตรวจสอบ']];
- result.innerHTML=`<h2>ผลการวิเคราะห์</h2><div class="status ${r.status==='calculated'?'success':'pending'}">${r.status==='calculated'?'คำนวณตามกฎที่เข้าเงื่อนไข':'ต้องการข้อมูลเพิ่มเติม / ตรวจสอบกฎหมาย'}</div><p><strong>ประเภทเงินได้:</strong> ${escapeHtml(r.type)}</p><div class="metrics">${metrics.map(([a,b])=>`<div class="metric"><small>${a}</small><strong>${b}</strong></div>`).join('')}</div>${r.questions.length?`<h3>ข้อมูลที่ต้องตรวจสอบ</h3><ul>${r.questions.map(q=>`<li>${escapeHtml(q)}</li>`).join('')}</ul>`:''}<p>${escapeHtml(r.note)}</p>${r.rule?`<p><strong>กฎตัวอย่าง:</strong> ${escapeHtml(r.rule.id)} · อัตราเบื้องต้น ${r.rule.rate}% (ตรวจสอบอัตรากฎหมายทั่วไปแล้ว แต่ยังไม่ยืนยันการใช้กับธุรกรรมนี้)</p><p><strong>เงื่อนไข:</strong> ${escapeHtml(r.rule.conditions)}</p><p><a href="${r.rule.source}" target="_blank" rel="noopener">เปิดแหล่งอ้างอิงกรมสรรพากร</a></p>`:''}<div class="actions"><button type="button" id="copyResult" class="secondary">คัดลอกผลการวิเคราะห์</button><button type="button" id="printResult" class="secondary">พิมพ์ผลลัพธ์</button></div>`;
+ result.innerHTML=`<h2>ผลการวิเคราะห์</h2><div class="status ${r.status==='calculated'?'success':'pending'}">${r.status==='calculated'?'คำนวณตามกฎที่เข้าเงื่อนไข':'ต้องการข้อมูลเพิ่มเติม / ตรวจสอบกฎหมาย'}</div><p><strong>ประเภทเงินได้:</strong> ${escapeHtml(r.type)}</p><div class="metrics">${metrics.map(([a,b])=>`<div class="metric"><small>${a}</small><strong>${b}</strong></div>`).join('')}</div>${r.questions.length?`<h3>ข้อมูลที่ต้องตรวจสอบ</h3><ul>${r.questions.map(q=>`<li>${escapeHtml(q)}</li>`).join('')}</ul>`:''}<p>${escapeHtml(r.note)}</p>${r.rule?`<p><strong>กฎตัวอย่าง:</strong> ${escapeHtml(r.rule.id)} · อัตราเบื้องต้น ${r.rule.rate}% (ตรวจสอบอัตรากฎหมายทั่วไปแล้ว แต่ยังไม่ยืนยันการใช้กับธุรกรรมนี้)</p><p><strong>เงื่อนไข:</strong> ${escapeHtml(r.rule.conditions)}</p><p><a href="${r.rule.source}" target="_blank" rel="noopener">เปิดแหล่งอ้างอิงกรมสรรพากร</a></p>`:''}<div class="actions"><button type="button" id="saveResult" class="full-btn">บันทึกรายการนี้</button><button type="button" id="copyResult" class="secondary">คัดลอกผลการวิเคราะห์</button><button type="button" id="printResult" class="secondary">พิมพ์ผลลัพธ์</button></div>`;
+ $('saveResult').addEventListener('click',saveCurrentResult);
  $('copyResult').addEventListener('click',async()=>{const t=result.innerText;try{await navigator.clipboard.writeText(t);$('copyResult').textContent='คัดลอกแล้ว'}catch(e){const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();const ok=document.execCommand('copy');ta.remove();$('copyResult').textContent=ok?'คัดลอกแล้ว':'ไม่สามารถคัดลอกได้'}});
  $('printResult').addEventListener('click',()=>window.print());result.scrollIntoView({behavior:'smooth',block:'start'});
 }
-$('taxForm').addEventListener('submit',e=>{e.preventDefault();const x=Object.fromEntries(['payerName','payerStatus','payerCountry','recipientName','recipientStatus','recipientCountry','businessInfo','incomeType','amount','vatStatus','paymentDate','description','special'].map(k=>[k,$(k).value.trim()]));x.freightConfirmed=$('freightConfirmed').checked?'yes':'no';render(analyze(x))});
+$('taxForm').addEventListener('submit',e=>{e.preventDefault();const x=Object.fromEntries(['payerName','payerStatus','payerCountry','recipientName','recipientStatus','recipientCountry','businessInfo','incomeType','amount','vatStatus','paymentDate','description','special'].map(k=>[k,$(k).value.trim()]));x.freightConfirmed=$('freightConfirmed').checked?'yes':'no';currentInput=x;currentResult=analyze(x);render(currentResult)});
 $('taxForm').addEventListener('reset',()=>{$('result').hidden=true;$('result').innerHTML='';setTimeout(()=>{$('payerCountry').value='ไทย';$('recipientCountry').value='ไทย'},0)});
 // Export pure engine for local test runner.
 window.TaxEngine={analyze,round};
@@ -53,3 +54,60 @@ $('viewDetails').addEventListener('click',()=>switchPanel('payer'));
 $('showRules').addEventListener('click',()=>switchPanel('rules'));
 function updateSummary(r){const put=(id,v)=>$(id).textContent=v;put('sAmount',money(r.amount));put('sVat',money(r.vat));put('sWht',money(r.withholding));put('sNet',money(r.net));put('sumAmount',money(r.amount));put('sumVat',money(r.vat));put('sumBase',money(r.amount));put('sumWht',money(r.withholding));put('sumNet',money(r.net));put('summaryStatus',r.status==='calculated'?'คำนวณตามกฎแล้ว':'ต้องตรวจสอบเพิ่มเติม');}
 $('taxForm').addEventListener('reset',()=>{['sAmount','sVat','sWht','sNet','sumAmount','sumVat','sumBase'].forEach(id=>$(id).textContent='—');$('sumWht').textContent='ต้องตรวจสอบ';$('sumNet').textContent='ต้องตรวจสอบ';$('summaryStatus').textContent='รอข้อมูลธุรกรรม';switchPanel('dashboard')});
+
+
+// History is local-only. No account, cloud sync, or automatic sharing.
+const HISTORY_KEY='ai_wht_history_v1';
+let currentInput=null,currentResult=null,editingHistoryId=null;
+const fields=['payerName','payerStatus','payerCountry','recipientName','recipientStatus','recipientCountry','businessInfo','incomeType','amount','vatStatus','paymentDate','description','special'];
+function readHistory(){try{const value=JSON.parse(localStorage.getItem(HISTORY_KEY)||'[]');return Array.isArray(value)?value:[]}catch{return []}}
+function writeHistory(items){localStorage.setItem(HISTORY_KEY,JSON.stringify(items));showHistory()}
+function collectInput(){const x=Object.fromEntries(fields.map(k=>[k,$(k).value.trim()]));x.freightConfirmed=$('freightConfirmed').checked?'yes':'no';return x}
+function saveCurrentResult(){
+ if(!currentInput||!currentResult){alert('กรุณาวิเคราะห์ภาษีก่อนบันทึก');return}
+ const items=readHistory(),now=new Date().toISOString();
+ const id=editingHistoryId||((typeof crypto!=='undefined'&&crypto.randomUUID)?crypto.randomUUID():'entry-'+Date.now()+'-'+Math.random().toString(36).slice(2));
+ const existing=items.findIndex(item=>item.id===id);
+ const record={id,createdAt:existing>=0?items[existing].createdAt:now,updatedAt:now,input:currentInput,result:{status:currentResult.status,type:currentResult.type,amount:currentResult.amount,vat:currentResult.vat,rate:currentResult.rate,withholding:currentResult.withholding,net:currentResult.net,form:currentResult.form,questions:currentResult.questions,note:currentResult.note,ruleId:currentResult.rule?.id||null}};
+ if(existing>=0)items[existing]=record;else items.unshift(record);
+ try{writeHistory(items);editingHistoryId=null;$('saveResult').textContent='บันทึกเรียบร้อย ✓';setTimeout(()=>{const b=$('saveResult');if(b)b.textContent='บันทึกรายการนี้'},1800)}catch(err){alert('ไม่สามารถบันทึกได้ พื้นที่เก็บข้อมูลเบราว์เซอร์อาจเต็มหรือถูกปิดใช้งาน')}
+}
+function showHistory(){
+ const items=readHistory();$('historyCount').textContent=String(items.length);
+ const q=($('historySearch').value||'').trim().toLocaleLowerCase();
+ const filtered=items.filter(item=>[item.input?.payerName,item.input?.recipientName,item.result?.type,item.input?.paymentDate].some(v=>String(v||'').toLocaleLowerCase().includes(q)));
+ $('historyList').innerHTML=filtered.length?filtered.map(item=>`<article class="history-item"><div><strong>${escapeHtml(item.result?.type||'ไม่ระบุ')}</strong><small>วันที่จ่าย ${escapeHtml(item.input?.paymentDate||'-')} · บันทึก ${escapeHtml(new Date(item.createdAt).toLocaleString('th-TH'))}</small><p>${escapeHtml(item.input?.payerName||'-')} → ${escapeHtml(item.input?.recipientName||'-')}</p><p>ยอดก่อน VAT: ${money(item.result?.amount)} · ภาษีหัก ณ ที่จ่าย: ${money(item.result?.withholding)} · ${item.result?.status==='calculated'?'คำนวณตามกฎ':'รอตรวจสอบ'}</p></div><div class="history-actions"><button type="button" class="outline" data-action="view" data-id="${escapeHtml(item.id)}">ดูผล</button><button type="button" class="outline" data-action="edit" data-id="${escapeHtml(item.id)}">แก้ไข</button><button type="button" class="outline" data-action="delete" data-id="${escapeHtml(item.id)}">ลบ</button></div></article>`).join(''):'<p>ยังไม่มีรายการที่ตรงกับการค้นหา</p>';
+}
+$('historySearch').addEventListener('input',showHistory);
+$('historyList').addEventListener('click',e=>{
+ const button=e.target.closest('button[data-action]');if(!button)return;
+ const item=readHistory().find(x=>x.id===button.dataset.id);if(!item)return;
+ if(button.dataset.action==='delete'){if(confirm('ต้องการลบรายการนี้อย่างถาวรจากเบราว์เซอร์นี้หรือไม่?')){try{writeHistory(readHistory().filter(x=>x.id!==item.id))}catch{alert('ลบข้อมูลไม่สำเร็จ')}}return}
+ if(button.dataset.action==='view'){
+  currentInput=item.input;currentResult=analyze(item.input);editingHistoryId=item.id;
+  render(currentResult);return;
+ }
+ if(button.dataset.action==='edit'){
+  fields.forEach(k=>{if($(k))$(k).value=item.input?.[k]||''});$('freightConfirmed').checked=item.input?.freightConfirmed==='yes';
+  editingHistoryId=item.id;currentInput=null;currentResult=null;$('result').hidden=true;
+  switchPanel('payer');alert('โหลดข้อมูลแล้ว กรุณาตรวจสอบและกดวิเคราะห์ภาษีอีกครั้ง จากนั้นกดบันทึกเพื่ออัปเดตรายการเดิม');
+ }
+});
+$('exportHistory').addEventListener('click',()=>{
+ const blob=new Blob([JSON.stringify({format:'ai-wht-history',version:1,exportedAt:new Date().toISOString(),records:readHistory()},null,2)],{type:'application/json'});
+ const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='tax-history-'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+});
+$('importHistory').addEventListener('click',()=>$('importHistoryFile').click());
+$('importHistoryFile').addEventListener('change',async e=>{
+ const file=e.target.files?.[0];if(!file)return;
+ try{if(file.size>5_000_000)throw Error('ไฟล์ใหญ่เกิน 5 MB');const data=JSON.parse(await file.text());
+ if(data.format!=='ai-wht-history'||!Array.isArray(data.records)||data.records.length>5000)throw Error('รูปแบบไฟล์ไม่ถูกต้อง');
+ const valid=data.records.every(r=>r&&typeof r.id==='string'&&r.id.length<150&&r.input&&typeof r.input==='object'&&r.result&&typeof r.result==='object');
+ if(!valid)throw Error('ข้อมูลรายการไม่ถูกต้อง');
+ if(!confirm('นำเข้าข้อมูล '+data.records.length+' รายการ โดยรวมกับข้อมูลเดิม (รายการ ID ซ้ำจะใช้ข้อมูลจากไฟล์) หรือไม่?'))return;
+ const map=new Map(readHistory().map(r=>[r.id,r]));for(const r of data.records)map.set(r.id,r);
+ writeHistory([...map.values()]);$('historyMessage').textContent='นำเข้าสำเร็จ';
+ }catch(err){$('historyMessage').textContent='นำเข้าไม่สำเร็จ: '+err.message}finally{e.target.value=''}
+});
+$('taxForm').addEventListener('reset',()=>{currentInput=null;currentResult=null;editingHistoryId=null});
+showHistory();
