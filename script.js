@@ -82,7 +82,8 @@ function updateTransactionConfirmations(){
 $('incomeType').addEventListener('change',updateTransactionConfirmations);
 updateTransactionConfirmations();
 $('taxForm').addEventListener('submit',e=>{e.preventDefault();runTaxAnalysis()});
-// Submit is handled once by the form; avoid duplicate analysis on button click.
+// Direct click handler: does not depend on browser form submission.
+$('analyzeButton').addEventListener('click',e=>{e.preventDefault();runTaxAnalysis()});
 
 $('taxForm').addEventListener('reset',()=>{setTimeout(updateTransactionConfirmations,0);$('result').hidden=true;$('result').innerHTML='';setTimeout(()=>{$('payerCountry').value='ไทย';$('recipientCountry').value='ไทย'},0)});
 // Export pure engine for local test runner.
@@ -152,3 +153,6 @@ $('importHistoryFile').addEventListener('change',async e=>{
 });
 $('taxForm').addEventListener('reset',()=>{currentInput=null;currentResult=null;editingHistoryId=null});
 showHistory();
+
+// Keep the secondary history heading in sync without affecting the navigation counter.
+if($('historyPageCount')){const updateHistoryHeading=()=>{$('historyPageCount').textContent=$('historyCount').textContent};updateHistoryHeading();const originalShowHistory=showHistory;showHistory=function(){originalShowHistory();updateHistoryHeading()};}
