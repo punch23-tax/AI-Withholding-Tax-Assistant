@@ -47,7 +47,22 @@ function render(r){updateSummary(r);switchPanel('calculator');const result=$('re
  $('copyResult').addEventListener('click',async()=>{const t=result.innerText;try{await navigator.clipboard.writeText(t);$('copyResult').textContent='คัดลอกแล้ว'}catch(e){const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();const ok=document.execCommand('copy');ta.remove();$('copyResult').textContent=ok?'คัดลอกแล้ว':'ไม่สามารถคัดลอกได้'}});
  $('printResult').addEventListener('click',()=>window.print());result.scrollIntoView({behavior:'smooth',block:'start'});
 }
-$('taxForm').addEventListener('submit',e=>{e.preventDefault();const x=Object.fromEntries(['payerName','payerStatus','payerCountry','recipientName','recipientStatus','recipientCountry','businessInfo','incomeType','amount','vatStatus','paymentDate','description','special'].map(k=>[k,$(k).value.trim()]));x.freightConfirmed=$('freightConfirmed').checked?'yes':'no';x.transactionConfirmed=$('transactionConfirmed').checked?'yes':'no';currentInput=x;currentResult=analyze(x);render(currentResult)});
+function runTaxAnalysis(){
+ try {
+  const x=collectInput();
+  currentInput=x;
+  currentResult=analyze(x);
+  render(currentResult);
+ } catch(error) {
+  console.error('Tax analysis error:',error);
+  switchPanel('calculator');
+  const result=$('result');
+  result.hidden=false;
+  result.textContent='ไม่สามารถวิเคราะห์ได้: '+(error?.message||'เกิดข้อผิดพลาด กรุณาตรวจสอบข้อมูล');
+ }
+}
+$('taxForm').addEventListener('submit',e=>{e.preventDefault();runTaxAnalysis()});
+$('analyzeButton').addEventListener('click',e=>{e.preventDefault();runTaxAnalysis()});
 $('taxForm').addEventListener('reset',()=>{$('result').hidden=true;$('result').innerHTML='';setTimeout(()=>{$('payerCountry').value='ไทย';$('recipientCountry').value='ไทย'},0)});
 // Export pure engine for local test runner.
 window.TaxEngine={analyze,round};
