@@ -6,8 +6,10 @@ const names={rent:'ค่าเช่า',service:'ค่าบริการ',
 function round(n){return Math.round((n+Number.EPSILON)*100)/100}
 function analyze(x){
  const questions=[];const amount=Number(x.amount);
- const required=['payerName','recipientName','payerCountry','recipientCountry','paymentDate','description','incomeType','vatStatus','payerStatus','recipientStatus'];
- if(required.some(k=>!String(x[k]||'').trim())||!Number.isFinite(amount)||amount<=0)questions.push('กรอกข้อมูลจำเป็นให้ครบ และระบุจำนวนเงินมากกว่า 0');
+ const required={payerCountry:'ประเทศผู้จ่ายเงิน',recipientCountry:'ประเทศผู้รับเงิน',paymentDate:'วันที่จ่ายเงิน',incomeType:'ประเภทเงินได้',vatStatus:'สถานะ VAT',payerStatus:'สถานะผู้จ่ายเงิน',recipientStatus:'สถานะผู้รับเงิน'};
+ for(const [key,label] of Object.entries(required))if(!String(x[key]||'').trim())questions.push('กรุณาระบุ'+label);
+ if(!Number.isFinite(amount)||amount<=0)questions.push('กรุณาระบุจำนวนเงินมากกว่า 0');
+ if(x.incomeType!=='freight'&&!String(x.description||'').trim())questions.push('กรุณาระบุรายละเอียดงานหรือสัญญา');
  if(x.payerStatus!=='company')questions.push('ต้องยืนยันหน้าที่หักภาษีของผู้จ่ายเงิน: กฎนี้รองรับเฉพาะนิติบุคคล');
  if(!['person','company'].includes(x.recipientStatus))questions.push('ต้องยืนยันสถานะผู้รับเงิน');
  if(x.payerCountry!=='ไทย'||x.recipientCountry!=='ไทย')questions.push('ต้องตรวจสอบกรณีต่างประเทศและอนุสัญญาภาษีซ้อน');
@@ -20,7 +22,7 @@ function analyze(x){
   if(/ค่าโดยสาร|ผู้โดยสาร|ขนส่งสาธารณะ|รถโดยสาร|รถประจำทาง/.test(detail))questions.push('รายการอาจเป็นค่าโดยสารขนส่งสาธารณะ ซึ่งไม่อยู่ในกฎค่าขนส่งสินค้า 1%');
   if(/ติดตั้ง|คลังสินค้า|เก็บสินค้า|ขนถ่าย|ยกตู้|handling|แพ็ค|บรรจุ|พิธีการ|ค่าบริการอื่น|เหมารวม|รวมบริการ|สัญญาผสม|จัดส่งพร้อมสินค้า|ขายสินค้า|ซื้อสินค้า/.test(detail))questions.push('พบลักษณะบริการผสมหรือค่าขนส่งรวมกับรายการอื่น ต้องแยกประเภทและฐานภาษีก่อน');
   if(amount<1000)questions.push('จำนวนเงินต่ำกว่า 1,000 บาท ต้องยืนยันยอดตามสัญญารายหนึ่ง ๆ ก่อน');
-  if(!/ขนส่ง|รับขน|ขนสินค้า|ขนย้าย|ขนของ|ส่งสินค้า|ส่งพัสดุ|freight|delivery/.test(x.description.toLowerCase()))questions.push('โปรดระบุให้ชัดว่าเป็นการรับขนสินค้าโดยไม่มีบริการอื่น');
+  if(x.freightConfirmed!=='yes')questions.push('โปรดยืนยันว่าเป็นค่ารับขนสินค้าโดยเฉพาะ ไม่ใช่ค่าโดยสารหรือบริการผสม');
  }
  let vat=null;
  if(x.vatStatus==='none')vat=0;
@@ -39,7 +41,7 @@ function render(r){updateSummary(r);switchPanel('calculator');const result=$('re
  $('copyResult').addEventListener('click',async()=>{const t=result.innerText;try{await navigator.clipboard.writeText(t);$('copyResult').textContent='คัดลอกแล้ว'}catch(e){const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();const ok=document.execCommand('copy');ta.remove();$('copyResult').textContent=ok?'คัดลอกแล้ว':'ไม่สามารถคัดลอกได้'}});
  $('printResult').addEventListener('click',()=>window.print());result.scrollIntoView({behavior:'smooth',block:'start'});
 }
-$('taxForm').addEventListener('submit',e=>{e.preventDefault();const x=Object.fromEntries(['payerName','payerStatus','payerCountry','recipientName','recipientStatus','recipientCountry','businessInfo','incomeType','amount','vatStatus','paymentDate','description','special'].map(k=>[k,$(k).value.trim()]));render(analyze(x))});
+$('taxForm').addEventListener('submit',e=>{e.preventDefault();const x=Object.fromEntries(['payerName','payerStatus','payerCountry','recipientName','recipientStatus','recipientCountry','businessInfo','incomeType','amount','vatStatus','paymentDate','description','special'].map(k=>[k,$(k).value.trim()]));x.freightConfirmed=$('freightConfirmed').checked?'yes':'no';render(analyze(x))});
 $('taxForm').addEventListener('reset',()=>{$('result').hidden=true;$('result').innerHTML='';setTimeout(()=>{$('payerCountry').value='ไทย';$('recipientCountry').value='ไทย'},0)});
 // Export pure engine for local test runner.
 window.TaxEngine={analyze,round};
