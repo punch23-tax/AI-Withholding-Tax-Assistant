@@ -9,14 +9,19 @@ function analyze(x){
  const required={payerCountry:'ประเทศผู้จ่ายเงิน',recipientCountry:'ประเทศผู้รับเงิน',paymentDate:'วันที่จ่ายเงิน',incomeType:'ประเภทเงินได้',vatStatus:'สถานะ VAT',payerStatus:'สถานะผู้จ่ายเงิน',recipientStatus:'สถานะผู้รับเงิน'};
  for(const [key,label] of Object.entries(required))if(!String(x[key]||'').trim())questions.push('กรุณาระบุ'+label);
  if(!Number.isFinite(amount)||amount<=0)questions.push('กรุณาระบุจำนวนเงินมากกว่า 0');
- if(x.incomeType!=='freight'&&!String(x.description||'').trim())questions.push('กรุณาระบุรายละเอียดงานหรือสัญญา');
+ if(!String(x.description||'').trim())questions.push('กรุณาระบุรายละเอียดงานหรือสัญญา เช่น ค่าเช่าสำนักงาน หรือค่าขนส่งสินค้าตามสัญญา');
  if(x.payerStatus!=='company')questions.push('ต้องยืนยันหน้าที่หักภาษีของผู้จ่ายเงิน: กฎนี้รองรับเฉพาะนิติบุคคล');
  if(!['person','company'].includes(x.recipientStatus))questions.push('ต้องยืนยันสถานะผู้รับเงิน');
  if(x.payerCountry!=='ไทย'||x.recipientCountry!=='ไทย')questions.push('ต้องตรวจสอบกรณีต่างประเทศและอนุสัญญาภาษีซ้อน');
  if(!/^\d{4}-\d{2}-\d{2}$/.test(x.paymentDate||'')||x.paymentDate<'2001-09-15')questions.push('วันที่จ่ายเงินไม่อยู่ในช่วงที่กฎค่าขนส่งฉบับนี้ยืนยันได้');
  const rule=window.TAX_RULES.find(r=>r.type===x.incomeType);
  if(!rule)questions.push('ยังไม่มีกฎที่ตรวจสอบได้สำหรับรายการนี้');
- if(x.incomeType!=='freight')questions.push('รายการนี้ยังต้องตรวจสอบลักษณะธุรกรรมและข้อยกเว้นเพิ่มเติม');
+ if(['rent','service','work','advertising'].includes(x.incomeType)){
+  if(x.transactionConfirmed!=='yes')questions.push('โปรดยืนยันว่าลักษณะรายการตรงกับประเภทเงินได้ที่เลือก และตรวจสอบข้อยกเว้นตามกฎหมายแล้ว');
+  const detail=((x.description||'')+' '+(x.special||'')).toLowerCase();
+  if(/ไม่แน่ใจ|ไม่ทราบ|สัญญาผสม|เหมารวม|รวมบริการ|ต่างประเทศ/.test(detail))questions.push('รายละเอียดอาจมีเงื่อนไขซับซ้อน ต้องตรวจสอบสัญญาเพิ่มเติม');
+ }
+ if(['goods','hotel','restaurant','other'].includes(x.incomeType))questions.push('รายการนี้ต้องตรวจสอบลักษณะธุรกรรมและข้อยกเว้นเพิ่มเติม ไม่สามารถสรุปอัตราอัตโนมัติ');
  if(x.incomeType==='freight'){
   const detail=((x.description||'')+' '+(x.special||'')+' '+(x.businessInfo||'')).toLowerCase();
   if(/ค่าโดยสาร|ผู้โดยสาร|ขนส่งสาธารณะ|รถโดยสาร|รถประจำทาง/.test(detail))questions.push('รายการอาจเป็นค่าโดยสารขนส่งสาธารณะ ซึ่งไม่อยู่ในกฎค่าขนส่งสินค้า 1%');
@@ -29,11 +34,11 @@ function analyze(x){
  else if(x.vatStatus==='7'&&x.paymentDate<='2027-09-30')vat=round(amount*.07);
  else if(x.vatStatus==='7')questions.push('ต้องยืนยันอัตรา VAT ที่มีผล ณ วันที่จ่าย');
  else questions.push('ไม่ทราบ VAT: แสดงยอดหัก ณ ที่จ่ายได้หากเข้าเงื่อนไข แต่ยังสรุปยอดจ่ายสุทธิไม่ได้');
- const eligible=x.incomeType==='freight'&&questions.filter(q=>!q.startsWith('ไม่ทราบ VAT:')).length===0;
- const rate=eligible?1:null,withholding=eligible?round(amount*.01):null;
+ const eligible=Boolean(rule)&&['rent','service','work','advertising','freight'].includes(x.incomeType)&&questions.filter(q=>!q.startsWith('ไม่ทราบ VAT:')).length===0;
+ const rate=eligible?rule.rate:null,withholding=eligible?round(amount*rate/100):null;
  const net=eligible&&vat!==null?round(amount+vat-withholding):null;
  const form=eligible?(x.recipientStatus==='person'?'ภ.ง.ด.3':'ภ.ง.ด.53'):null;
- return {status:eligible?'calculated':'pending',type:names[x.incomeType]||'ไม่ระบุ',amount:Number.isFinite(amount)&&amount>0?amount:null,vat,rate,withholding,net,form,rule,questions:[...new Set(questions)],note:eligible?'คำนวณตามกฎค่าขนส่งสินค้า ท.ป.4/2528 ข้อ 12/4 ภายใต้ข้อมูลที่ระบุ โปรดตรวจสอบเอกสารจริงก่อนใช้งาน':'ระบบไม่คาดเดาอัตราเมื่อเงื่อนไขยังไม่ครบ'};
+ return {status:eligible?'calculated':'pending',type:names[x.incomeType]||'ไม่ระบุ',amount:Number.isFinite(amount)&&amount>0?amount:null,vat,rate,withholding,net,form,rule,questions:[...new Set(questions)],note:eligible?'คำนวณตามอัตราเบื้องต้นของกฎ '+rule.id+' จากข้อมูลและคำยืนยันของผู้กรอก โปรดตรวจสอบสัญญาและข้อกฎหมายก่อนใช้งานจริง':'ระบบไม่คาดเดาอัตราเมื่อเงื่อนไขยังไม่ครบ'};
 }
 function render(r){updateSummary(r);switchPanel('calculator');const result=$('result');result.hidden=false;
  const metrics=[['จำนวนเงินก่อน VAT',money(r.amount)],['VAT',money(r.vat)],['อัตราหัก ณ ที่จ่าย',r.rate===null?'ต้องตรวจสอบ':r.rate+'%'],['ภาษีหัก ณ ที่จ่าย',money(r.withholding)],['ยอดจ่ายสุทธิ',money(r.net)],['แบบนำส่ง',r.form||'ต้องตรวจสอบ']];
@@ -42,7 +47,7 @@ function render(r){updateSummary(r);switchPanel('calculator');const result=$('re
  $('copyResult').addEventListener('click',async()=>{const t=result.innerText;try{await navigator.clipboard.writeText(t);$('copyResult').textContent='คัดลอกแล้ว'}catch(e){const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();const ok=document.execCommand('copy');ta.remove();$('copyResult').textContent=ok?'คัดลอกแล้ว':'ไม่สามารถคัดลอกได้'}});
  $('printResult').addEventListener('click',()=>window.print());result.scrollIntoView({behavior:'smooth',block:'start'});
 }
-$('taxForm').addEventListener('submit',e=>{e.preventDefault();const x=Object.fromEntries(['payerName','payerStatus','payerCountry','recipientName','recipientStatus','recipientCountry','businessInfo','incomeType','amount','vatStatus','paymentDate','description','special'].map(k=>[k,$(k).value.trim()]));x.freightConfirmed=$('freightConfirmed').checked?'yes':'no';currentInput=x;currentResult=analyze(x);render(currentResult)});
+$('taxForm').addEventListener('submit',e=>{e.preventDefault();const x=Object.fromEntries(['payerName','payerStatus','payerCountry','recipientName','recipientStatus','recipientCountry','businessInfo','incomeType','amount','vatStatus','paymentDate','description','special'].map(k=>[k,$(k).value.trim()]));x.freightConfirmed=$('freightConfirmed').checked?'yes':'no';x.transactionConfirmed=$('transactionConfirmed').checked?'yes':'no';currentInput=x;currentResult=analyze(x);render(currentResult)});
 $('taxForm').addEventListener('reset',()=>{$('result').hidden=true;$('result').innerHTML='';setTimeout(()=>{$('payerCountry').value='ไทย';$('recipientCountry').value='ไทย'},0)});
 // Export pure engine for local test runner.
 window.TaxEngine={analyze,round};
@@ -62,7 +67,7 @@ let currentInput=null,currentResult=null,editingHistoryId=null;
 const fields=['payerName','payerStatus','payerCountry','recipientName','recipientStatus','recipientCountry','businessInfo','incomeType','amount','vatStatus','paymentDate','description','special'];
 function readHistory(){try{const value=JSON.parse(localStorage.getItem(HISTORY_KEY)||'[]');return Array.isArray(value)?value:[]}catch{return []}}
 function writeHistory(items){localStorage.setItem(HISTORY_KEY,JSON.stringify(items));showHistory()}
-function collectInput(){const x=Object.fromEntries(fields.map(k=>[k,$(k).value.trim()]));x.freightConfirmed=$('freightConfirmed').checked?'yes':'no';return x}
+function collectInput(){const x=Object.fromEntries(fields.map(k=>[k,$(k).value.trim()]));x.freightConfirmed=$('freightConfirmed').checked?'yes':'no';x.transactionConfirmed=$('transactionConfirmed').checked?'yes':'no';return x}
 function saveCurrentResult(){
  if(!currentInput||!currentResult){alert('กรุณาวิเคราะห์ภาษีก่อนบันทึก');return}
  const items=readHistory(),now=new Date().toISOString();
@@ -88,7 +93,7 @@ $('historyList').addEventListener('click',e=>{
   render(currentResult);return;
  }
  if(button.dataset.action==='edit'){
-  fields.forEach(k=>{if($(k))$(k).value=item.input?.[k]||''});$('freightConfirmed').checked=item.input?.freightConfirmed==='yes';
+  fields.forEach(k=>{if($(k))$(k).value=item.input?.[k]||''});$('freightConfirmed').checked=item.input?.freightConfirmed==='yes';$('transactionConfirmed').checked=item.input?.transactionConfirmed==='yes';
   editingHistoryId=item.id;currentInput=null;currentResult=null;$('result').hidden=true;
   switchPanel('payer');alert('โหลดข้อมูลแล้ว กรุณาตรวจสอบและกดวิเคราะห์ภาษีอีกครั้ง จากนั้นกดบันทึกเพื่ออัปเดตรายการเดิม');
  }
