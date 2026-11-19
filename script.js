@@ -9,15 +9,15 @@ function analyze(x){
  const required={payerCountry:'ประเทศผู้จ่ายเงิน',recipientCountry:'ประเทศผู้รับเงิน',paymentDate:'วันที่จ่ายเงิน',incomeType:'ประเภทเงินได้',vatStatus:'สถานะ VAT',payerStatus:'สถานะผู้จ่ายเงิน',recipientStatus:'สถานะผู้รับเงิน'};
  for(const [key,label] of Object.entries(required))if(!String(x[key]||'').trim())questions.push('กรุณาระบุ'+label);
  if(!Number.isFinite(amount)||amount<=0)questions.push('กรุณาระบุจำนวนเงินมากกว่า 0');
- if(!String(x.description||'').trim() && !(x.incomeType==='freight' && x.freightConfirmed==='yes'))questions.push('กรุณาระบุรายละเอียดงานหรือสัญญา เช่น ค่าเช่าสำนักงาน หรือค่าขนส่งสินค้าตามสัญญา');
+ if(!String(x.description||'').trim() && !(x.incomeType==='freight' && x.freightConfirmed==='yes') && !(['rent','service','work','advertising'].includes(x.incomeType) && x.transactionConfirmed==='yes'))questions.push('กรุณาระบุรายละเอียดงานหรือสัญญา เช่น ค่าเช่าสำนักงาน หรือค่าขนส่งสินค้าตามสัญญา');
  if(x.payerStatus!=='company')questions.push('ต้องยืนยันหน้าที่หักภาษีของผู้จ่ายเงิน: กฎนี้รองรับเฉพาะนิติบุคคล');
  if(!['person','company'].includes(x.recipientStatus))questions.push('ต้องยืนยันสถานะผู้รับเงิน');
  if(x.payerCountry!=='ไทย'||x.recipientCountry!=='ไทย')questions.push('ต้องตรวจสอบกรณีต่างประเทศและอนุสัญญาภาษีซ้อน');
- if(!/^\d{4}-\d{2}-\d{2}$/.test(x.paymentDate||'')||x.paymentDate<'2001-09-15')questions.push('วันที่จ่ายเงินไม่อยู่ในช่วงที่กฎค่าขนส่งฉบับนี้ยืนยันได้');
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(x.paymentDate||'')||x.paymentDate<'2001-09-15')questions.push('กรุณาระบุวันที่จ่ายเงินที่ถูกต้อง (ตั้งแต่ 15 กันยายน 2544)');
  const rule=(Array.isArray(window.TAX_RULES)?window.TAX_RULES:[]).find(r=>r.type===x.incomeType);
  if(!rule)questions.push('ยังไม่มีกฎที่ตรวจสอบได้สำหรับรายการนี้');
  if(['rent','service','work','advertising'].includes(x.incomeType)){
-  if(x.transactionConfirmed!=='yes')questions.push('โปรดยืนยันว่าลักษณะรายการตรงกับประเภทเงินได้ที่เลือก และตรวจสอบข้อยกเว้นตามกฎหมายแล้ว');
+  if(x.transactionConfirmed!=='yes')questions.push('กรุณาติ๊กช่องยืนยันประเภทเงินได้และข้อยกเว้นในหน้ารายละเอียดธุรกรรม');
   const detail=((x.description||'')+' '+(x.special||'')).toLowerCase();
   if(/ไม่แน่ใจ|ไม่ทราบ|สัญญาผสม|เหมารวม|รวมบริการ|ต่างประเทศ/.test(detail))questions.push('รายละเอียดอาจมีเงื่อนไขซับซ้อน ต้องตรวจสอบสัญญาเพิ่มเติม');
  }
@@ -70,10 +70,21 @@ function runTaxAnalysis(){
   if(feedback){feedback.hidden=false;feedback.textContent=message;}
  }
 }
+function updateTransactionConfirmations(){
+ const type=$('incomeType').value;
+ const general=['rent','service','work','advertising'].includes(type);
+ const freight=type==='freight';
+ const generalLabel=$('transactionConfirmed').closest('label');
+ const freightLabel=$('freightConfirmed').closest('label');
+ generalLabel.hidden=!general;generalLabel.style.display=general?'flex':'none';
+ freightLabel.hidden=!freight;freightLabel.style.display=freight?'flex':'none';
+}
+$('incomeType').addEventListener('change',updateTransactionConfirmations);
+updateTransactionConfirmations();
 $('taxForm').addEventListener('submit',e=>{e.preventDefault();runTaxAnalysis()});
 // Submit is handled once by the form; avoid duplicate analysis on button click.
 
-$('taxForm').addEventListener('reset',()=>{$('result').hidden=true;$('result').innerHTML='';setTimeout(()=>{$('payerCountry').value='ไทย';$('recipientCountry').value='ไทย'},0)});
+$('taxForm').addEventListener('reset',()=>{setTimeout(updateTransactionConfirmations,0);$('result').hidden=true;$('result').innerHTML='';setTimeout(()=>{$('payerCountry').value='ไทย';$('recipientCountry').value='ไทย'},0)});
 // Export pure engine for local test runner.
 window.TaxEngine={analyze,round};
 
